@@ -25,7 +25,7 @@ class RecommendationService
     /**
      * Generate personalized recommendations for a user.
      */
-    public function generateRecommendations(User $user, int $limit = 10): Collection
+    public function generateRecommendations(User $user, int $limit = 10): EloquentCollection
     {
         // Get user's borrowing history
         $borrowedBookIds = $user->loans()
@@ -65,15 +65,17 @@ class RecommendationService
         // Return as Eloquent Collection, preserving the score order
         $bookIds = $scoredBooks->pluck('book.id')->toArray();
         if (empty($bookIds)) {
-            return new Collection();
+            return new EloquentCollection();
         }
         
         $books = Book::whereIn('id', $bookIds)->get();
         
-        // Sort by the original score order
-        return $books->sortBy(function ($book) use ($bookIds) {
+        // Sort by the original score order and convert back to EloquentCollection
+        $sorted = $books->sortBy(function ($book) use ($bookIds) {
             return array_search($book->id, $bookIds);
         })->values();
+        
+        return new EloquentCollection($sorted->all());
     }
 
     /**
@@ -258,7 +260,7 @@ class RecommendationService
     /**
      * Get cached recommendations for a user.
      */
-    public function getCachedRecommendations(User $user, int $limit = 10): Collection
+    public function getCachedRecommendations(User $user, int $limit = 10): EloquentCollection
     {
         $recommendations = Recommendation::where('user_id', $user->id)
             ->with('book.category', 'book.reviews')
@@ -271,13 +273,14 @@ class RecommendationService
             return $this->generateRecommendations($user, $limit);
         }
 
-        return $recommendations->pluck('book');
+        // pluck returns Support\Collection, convert to Eloquent\Collection
+        return new EloquentCollection($recommendations->pluck('book')->all());
     }
 
     /**
      * Get trending books (most borrowed in last 30 days).
      */
-    public function getTrendingBooks(int $limit = 10): Collection
+    public function getTrendingBooks(int $limit = 10): EloquentCollection
     {
         return Book::withCount(['loans as recent_loans' => function ($query) {
             $query->where('created_at', '>=', now()->subDays(30));
@@ -291,7 +294,7 @@ class RecommendationService
     /**
      * Get top rated books.
      */
-    public function getTopRatedBooks(int $limit = 10): Collection
+    public function getTopRatedBooks(int $limit = 10): EloquentCollection
     {
         return Book::withAvg('reviews as avg_rating', 'rating')
             ->withCount('reviews')
@@ -307,7 +310,7 @@ class RecommendationService
     /**
      * Get new arrivals.
      */
-    public function getNewArrivals(int $limit = 10): Collection
+    public function getNewArrivals(int $limit = 10): EloquentCollection
     {
         return Book::where('available_copies', '>', 0)
             ->orderByDesc('created_at')

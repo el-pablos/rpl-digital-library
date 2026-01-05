@@ -205,15 +205,6 @@ class NoMissingViewsSmokeTest extends TestCase
         foreach ($memberRoutes as $route) {
             $response = $this->actingAs($this->member)->get($route);
             
-            if ($response->getStatusCode() === 500) {
-                // Debug: Get exception message from response
-                $content = $response->getContent();
-                if (preg_match('/(?:Exception|Error)[:\s]+([^<]+)/', $content, $matches)) {
-                    $errorMessage = trim($matches[1] ?? 'Unknown error');
-                    $this->fail("Member route {$route} returned 500 error: {$errorMessage}");
-                }
-            }
-            
             $this->assertNotEquals(
                 500, 
                 $response->getStatusCode(), 
